@@ -1,0 +1,59 @@
+# System files
+.DS_Store
+Thumbs.db
+*.log
+
+# Environment variables
+.env
+
+# Editor directories
+.idea/
+.vscode/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+build/
+out/
+
+# Database (Generated)
+pos.db
+
+# Electron
+electron/dist/
+electron/frontend_dist/
+# Avoid committing the copied backend in electron build
+electron/backend/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Android
+android/gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/.gradle
+android/app/libs/
+android/app/src/main/assets/
+
+# iOS
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+ios/.generated/
