@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { type Sale, getSales } from '../services/api';
-import { Button } from '../components/ui/button';
-import { printReceipt } from '../utils/printer';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { type Sale, getSales, requestVoid, approveVoid, getCurrentUser } from '@/services/api';
+import { Button } from '@/components/ui/button';
+import { printReceipt } from '@/utils/printer';
+
+// ... existing code ...
 
 const SalesHistoryPage: React.FC = () => {
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
+    const user = getCurrentUser();
 
     useEffect(() => {
         fetchSales();
@@ -22,6 +25,30 @@ const SalesHistoryPage: React.FC = () => {
             console.error('Failed to fetch sales history', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVoidRequest = async (saleId: number) => {
+        if (!user || user.role !== 'cashier') return;
+        if (!confirm('Are you sure you want to request a void for this sale?')) return;
+        try {
+            await requestVoid(saleId, user.id);
+            alert('Void request sent to admin.');
+            fetchSales();
+        } catch (error) {
+            alert('Failed to request void.');
+        }
+    };
+
+    const handleApproveVoid = async (saleId: number) => {
+        if (!user || user.role !== 'admin') return;
+        if (!confirm('Approve void request? This will restore stock.')) return;
+        try {
+            await approveVoid(saleId);
+            alert('Sale voided successfully.');
+            fetchSales();
+        } catch (error) {
+            alert('Failed to approve void.');
         }
     };
 
@@ -44,6 +71,7 @@ const SalesHistoryPage: React.FC = () => {
                                     <TableHead>ID</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Payment</TableHead>
+                                    <TableHead>Status</TableHead>
                                     <TableHead>Items</TableHead>
                                     <TableHead className="text-right">Total Amount</TableHead>
                                     <TableHead className="text-right">Action</TableHead>
@@ -57,11 +85,19 @@ const SalesHistoryPage: React.FC = () => {
                                             {sale.created_at ? new Date(sale.created_at).toLocaleString() : '-'}
                                         </TableCell>
                                         <TableCell className="capitalize">{sale.payment_method}</TableCell>
+                                        <TableCell className="capitalize">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${sale.status === 'voided' ? 'bg-red-100 text-red-800' :
+                                                sale.status === 'pending_void' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-green-100 text-green-800'
+                                                }`}>
+                                                {sale.status || 'Completed'}
+                                            </span>
+                                        </TableCell>
                                         <TableCell>{sale.items.length}</TableCell>
                                         <TableCell className="text-right font-medium">
                                             LKR {sale.total_amount.toFixed(2)}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className="text-right space-x-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -74,8 +110,31 @@ const SalesHistoryPage: React.FC = () => {
                                                     printReceipt(sale, receiptItems);
                                                 }}
                                             >
-                                                View Receipt
+                                                Receipt
                                             </Button>
+
+                                            {/* Cashier Request Void */}
+                                            {user?.role === 'cashier' && sale.status !== 'voided' && sale.status !== 'pending_void' && (
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() => sale.id && handleVoidRequest(sale.id)}
+                                                >
+                                                    Request Void
+                                                </Button>
+                                            )}
+
+                                            {/* Admin Approve Void */}
+                                            {user?.role === 'admin' && sale.status === 'pending_void' && (
+                                                <Button
+                                                    variant="default" // or a create a success variant
+                                                    className="bg-green-600 hover:bg-green-700"
+                                                    size="sm"
+                                                    onClick={() => sale.id && handleApproveVoid(sale.id)}
+                                                >
+                                                    Approve Void
+                                                </Button>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}

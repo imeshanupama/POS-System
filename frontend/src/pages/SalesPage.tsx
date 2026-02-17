@@ -5,6 +5,15 @@ import { type Product, getProducts, processSale } from '../services/api';
 import { Input } from '../components/ui/input';
 import { printReceipt } from '../utils/printer';
 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+
 interface CartItem {
     product: Product;
     quantity: number;
@@ -15,7 +24,11 @@ const SalesPage: React.FC = () => {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash'); // Default payment method
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
+
+    // State for receipt dialog
+    const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+    const [lastSaleData, setLastSaleData] = useState<{ sale: any, items: any[] } | null>(null);
 
     useEffect(() => {
         fetchProducts();
@@ -69,7 +82,7 @@ const SalesPage: React.FC = () => {
 
         const saleData = {
             total_amount: totalAmount,
-            payment_method: paymentMethod, // Assuming simple cash for now
+            payment_method: paymentMethod,
             items: cart.map((item) => ({
                 product_id: item.product.id!,
                 quantity: item.quantity,
@@ -79,23 +92,30 @@ const SalesPage: React.FC = () => {
 
         try {
             const result = await processSale(saleData);
-            alert('Sale processed successfully!');
 
-            // Prepare data for receipt printing
+            // Prepare data for receipt printing and show dialog
             const receiptItems = cart.map(item => ({
                 name: item.product.name,
                 quantity: item.quantity,
                 price: item.product.price
             }));
 
-            // Print Receipt
-            printReceipt({ ...saleData, id: result.id }, receiptItems);
+            setLastSaleData({ sale: { ...saleData, id: result.id }, items: receiptItems });
+            setIsReceiptDialogOpen(true);
 
             setCart([]);
-            fetchProducts(); // Update stock
+            setPaymentMethod('cash');
+            fetchProducts();
         } catch (error) {
             alert('Failed to process sale');
             console.error(error);
+        }
+    };
+
+    const handlePrintReceipt = () => {
+        if (lastSaleData) {
+            printReceipt(lastSaleData.sale, lastSaleData.items);
+            setIsReceiptDialogOpen(false);
         }
     };
 
@@ -220,6 +240,21 @@ const SalesPage: React.FC = () => {
                     </Button>
                 </div>
             </Card>
+
+            <Dialog open={isReceiptDialogOpen} onOpenChange={setIsReceiptDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Sale Successful!</DialogTitle>
+                        <DialogDescription>
+                            The transaction was processed successfully. Would you like to print a receipt?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsReceiptDialogOpen(false)}>No, Close</Button>
+                        <Button onClick={handlePrintReceipt}>Yes, Print Receipt</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

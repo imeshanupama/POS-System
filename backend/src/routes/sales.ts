@@ -66,4 +66,46 @@ router.get('/', (req, res) => {
     }
 });
 
+// Request void (Cashier)
+router.post('/:id/void', (req, res) => {
+    const { id } = req.params;
+    const { cashierId } = req.body;
+
+    try {
+        const stmt = db.prepare('UPDATE sales SET status = ?, cashier_id = ? WHERE id = ?');
+        const info = stmt.run('pending_void', cashierId, id);
+
+        if (info.changes === 0) return res.status(404).json({ error: 'Sale not found' });
+        res.json({ message: 'Void request submitted' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to request void' });
+    }
+});
+
+// Admin approves void request
+router.post('/:id/void/approve', (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id) as any;
+        if (!sale) return res.status(404).json({ error: 'Sale not found' });
+        if (sale.status !== 'pending_void') return res.status(400).json({ error: 'Sale is not pending void' });
+
+        // Restore stock
+        const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(id) as any[];
+        const updateStock = db.prepare('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?');
+
+        db.transaction(() => {
+            for (const item of items) {
+                updateStock.run(item.quantity, item.product_id);
+            }
+            db.prepare('UPDATE sales SET status = ? WHERE id = ?').run('voided', id);
+        })();
+
+        res.json({ message: 'Sale voided and stock restored' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to approve void' });
+    }
+});
+
 export default router;

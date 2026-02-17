@@ -46,6 +46,7 @@ export interface Sale {
     id?: number;
     total_amount: number;
     payment_method: 'cash' | 'card';
+    status?: 'completed' | 'pending_void' | 'voided';
     items: SaleItem[];
     created_at?: string;
 }
@@ -57,5 +58,44 @@ export const processSale = async (sale: Sale) => {
 
 export const getSales = async () => {
     const response = await api.get<Sale[]>('/sales');
+    return response.data;
+};
+
+export interface User {
+    id: number;
+    username: string;
+    role: 'admin' | 'cashier';
+}
+
+export const loginUser = async (user: { username: string; password: string }) => {
+    const response = await api.post<User>('/auth/login', user);
+    localStorage.setItem('user', JSON.stringify(response.data));
+    return response.data;
+};
+
+export const logoutUser = () => {
+    localStorage.removeItem('user');
+};
+
+export const getCurrentUser = (): User | null => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+        return JSON.parse(userStr);
+    }
+    return null;
+};
+
+export const requestVoid = async (saleId: number, cashierId: number) => {
+    const response = await api.post(`/sales/${saleId}/void`, { cashierId });
+    return response.data;
+};
+
+export const approveVoid = async (saleId: number) => {
+    const response = await api.post(`/sales/${saleId}/void/approve`);
+    return response.data;
+};
+
+export const registerUser = async (user: { username: string; password: string; role: 'admin' | 'cashier' }) => {
+    const response = await api.post<User>('/auth/register', user);
     return response.data;
 };
