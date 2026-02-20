@@ -13,16 +13,24 @@ router.post('/', (req, res) => {
     }
 
     try {
-        const insertSale = db.prepare('INSERT INTO sales (total_amount, payment_method) VALUES (?, ?)');
-        const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)');
+        const insertSale = db.prepare('INSERT INTO sales (total_amount, discount, payment_method, customer_id) VALUES (?, ?, ?, ?)');
+        const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, cost_price_at_sale, discount) VALUES (?, ?, ?, ?, ?, ?)');
         const updateStock = db.prepare('UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?');
+        const getCostPrice = db.prepare('SELECT cost_price FROM products WHERE id = ?');
 
         const createTransaction = db.transaction(() => {
-            const info = insertSale.run(total_amount, payment_method || 'cash');
+            const info = insertSale.run(total_amount, req.body.discount || 0, payment_method || 'cash', req.body.customer_id || null);
             const saleId = info.lastInsertRowid;
 
+            if (payment_method === 'credit' && req.body.customer_id) {
+                db.prepare('UPDATE customers SET credit_balance = credit_balance + ? WHERE id = ?').run(total_amount, req.body.customer_id);
+            }
+
             for (const item of items) {
-                insertItem.run(saleId, item.product_id, item.quantity, item.price_at_sale);
+                const product = getCostPrice.get(item.product_id) as any;
+                const costPrice = product && product.cost_price ? product.cost_price : 0;
+
+                insertItem.run(saleId, item.product_id, item.quantity, item.price_at_sale, costPrice, item.discount || 0);
                 updateStock.run(item.quantity, item.product_id);
             }
             return saleId;
@@ -44,13 +52,17 @@ router.get('/', (req, res) => {
         'product_id', si.product_id, 
         'quantity', si.quantity, 
         'price_at_sale', si.price_at_sale,
+        'cost_price_at_sale', si.cost_price_at_sale,
+        'discount', si.discount,
         'name', p.name
       ))
        FROM sale_items si
        JOIN products p ON si.product_id = p.id
-       WHERE si.sale_id = s.id) as items
+       WHERE si.sale_id = s.id) as items,
+       c.name as customer_name
       FROM sales s 
-      ORDER BY created_at DESC 
+      LEFT JOIN customers c ON s.customer_id = c.id
+      ORDER BY s.created_at DESC 
       LIMIT 100
     `).all();
 
@@ -70,7 +82,9 @@ router.get('/', (req, res) => {
 router.get('/analytics/daily', (req, res) => {
     try {
         const data = db.prepare(`
-            SELECT strftime('%Y-%m-%d', created_at) as date, SUM(total_amount) as total
+            SELECT strftime('%Y-%m-%d', created_at) as date, 
+                   SUM(total_amount) as total,
+                   SUM((SELECT SUM((price_at_sale - cost_price_at_sale) * quantity) FROM sale_items WHERE sale_id = sales.id)) as profit
             FROM sales
             WHERE status = 'completed' AND created_at >= date('now', '-7 days')
             GROUP BY date
@@ -163,16 +177,20 @@ router.post('/hold', (req, res) => {
     }
 
     try {
-        const insertSale = db.prepare('INSERT INTO sales (total_amount, payment_method, status) VALUES (?, ?, ?)');
-        const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)');
+        const insertSale = db.prepare('INSERT INTO sales (total_amount, discount, payment_method, status) VALUES (?, ?, ?, ?)');
+        const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, cost_price_at_sale, discount) VALUES (?, ?, ?, ?, ?, ?)');
         const updateStock = db.prepare('UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?');
+        const getCostPrice = db.prepare('SELECT cost_price FROM products WHERE id = ?');
 
         const createTransaction = db.transaction(() => {
-            const info = insertSale.run(total_amount, 'hold', 'held');
+            const info = insertSale.run(total_amount, req.body.discount || 0, 'hold', 'held');
             const saleId = info.lastInsertRowid;
 
             for (const item of items) {
-                insertItem.run(saleId, item.product_id, item.quantity, item.price_at_sale);
+                const product = getCostPrice.get(item.product_id) as any;
+                const costPrice = product && product.cost_price ? product.cost_price : 0;
+
+                insertItem.run(saleId, item.product_id, item.quantity, item.price_at_sale, costPrice, item.discount || 0);
                 updateStock.run(item.quantity, item.product_id);
             }
             return saleId;
@@ -194,8 +212,11 @@ router.get('/held', (req, res) => {
                 'product_id', si.product_id, 
                 'quantity', si.quantity, 
                 'price_at_sale', si.price_at_sale,
+                'cost_price_at_sale', si.cost_price_at_sale,
+                'discount', si.discount,
                 'name', p.name,
-                'price', p.price
+                'price', p.price,
+                'cost_price', p.cost_price
             ))
             FROM sale_items si
             JOIN products p ON si.product_id = p.id

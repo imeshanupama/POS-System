@@ -15,6 +15,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
         name: '',
         barcode: '',
         price: 0,
+        cost_price: 0,
         stock_quantity: 0,
     });
     const [loading, setLoading] = useState(false);
@@ -26,10 +27,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
                 name: productToEdit.name,
                 barcode: productToEdit.barcode || '',
                 price: productToEdit.price,
+                cost_price: productToEdit.cost_price || 0,
                 stock_quantity: productToEdit.stock_quantity,
             });
         } else {
-            setFormData({ name: '', barcode: '', price: 0, stock_quantity: 0 });
+            setFormData({ name: '', barcode: '', price: 0, cost_price: 0, stock_quantity: 0 });
         }
     }, [productToEdit]);
 
@@ -43,7 +45,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
                 await updateProduct(productToEdit.id, formData);
             } else {
                 await addProduct(formData);
-                setFormData({ name: '', barcode: '', price: 0, stock_quantity: 0 }); // Reset form
+                setFormData({ name: '', barcode: '', price: 0, cost_price: 0, stock_quantity: 0 }); // Reset form
             }
             if (onProductAdded) {
                 onProductAdded();
@@ -59,7 +61,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
         const { name, value } = e.target;
         setFormData((prev) => ({
             ...prev,
-            [name]: name === 'price' || name === 'stock_quantity' ? Number(value) : value,
+            [name]: name === 'price' || name === 'cost_price' || name === 'stock_quantity' ? Number(value) : value,
         }));
     };
 
@@ -93,7 +95,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="price" className="text-slate-700 font-semibold">Price (LKR)</Label>
+                        <Label htmlFor="price" className="text-slate-700 font-semibold">Selling Price (LKR)</Label>
                         <Input
                             id="price"
                             name="price"
@@ -102,6 +104,22 @@ const ProductForm: React.FC<ProductFormProps> = ({ onProductAdded, productToEdit
                             step="0.01"
                             placeholder="0.00"
                             value={formData.price}
+                            onChange={handleChange}
+                            className="h-10 border-slate-200 focus-visible:ring-indigo-500 rounded-lg"
+                            required
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="cost_price" className="text-slate-700 font-semibold">Cost Price (LKR)</Label>
+                        <Input
+                            id="cost_price"
+                            name="cost_price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={formData.cost_price}
                             onChange={handleChange}
                             className="h-10 border-slate-200 focus-visible:ring-indigo-500 rounded-lg"
                             required

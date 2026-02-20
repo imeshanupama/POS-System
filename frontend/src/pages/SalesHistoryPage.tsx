@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Sale, getSales, requestVoid, approveVoid, getCurrentUser } from '@/services/api';
 import { Button } from '@/components/ui/button';
-import { printReceipt } from '@/utils/printer';
+import { useReactToPrint } from 'react-to-print';
+import Receipt from '@/components/Receipt';
 
 // ... existing code ...
 
@@ -11,6 +12,24 @@ const SalesHistoryPage: React.FC = () => {
     const [sales, setSales] = useState<Sale[]>([]);
     const [loading, setLoading] = useState(true);
     const user = getCurrentUser();
+
+    // Print state
+    const [printData, setPrintData] = useState<{ sale: Sale; items: any[] } | null>(null);
+    const receiptRef = useRef<HTMLDivElement>(null);
+
+    const handlePrintReceipt = useReactToPrint({
+        contentRef: receiptRef,
+        onAfterPrint: () => setPrintData(null),
+    });
+
+    useEffect(() => {
+        if (printData && receiptRef.current) {
+            // Slight delay to ensure DOM is updated with printData before printing
+            setTimeout(() => {
+                handlePrintReceipt();
+            }, 100);
+        }
+    }, [printData, handlePrintReceipt]);
 
     useEffect(() => {
         fetchSales();
@@ -107,7 +126,7 @@ const SalesHistoryPage: React.FC = () => {
                                                         quantity: item.quantity,
                                                         price: item.price_at_sale
                                                     }));
-                                                    printReceipt(sale, receiptItems);
+                                                    setPrintData({ sale, items: receiptItems });
                                                 }}
                                             >
                                                 Receipt
@@ -143,6 +162,17 @@ const SalesHistoryPage: React.FC = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Hidden Receipt Component for Printing */}
+            <div className="hidden">
+                {printData && (
+                    <Receipt
+                        ref={receiptRef}
+                        sale={printData.sale}
+                        items={printData.items}
+                    />
+                )}
+            </div>
         </div>
     );
 };

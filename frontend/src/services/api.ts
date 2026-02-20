@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Change to your backend URL (local or deployed)
-const API_URL = 'http://localhost:3000/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export const api = axios.create({
     baseURL: API_URL,
@@ -15,6 +15,7 @@ export interface Product {
     name: string;
     barcode: string;
     price: number;
+    cost_price: number;
     stock_quantity: number;
     category_id?: number;
 }
@@ -44,15 +45,19 @@ export interface SaleItem {
     product_id: number;
     quantity: number;
     price_at_sale: number;
+    discount?: number;
     name?: string;
 }
 
 export interface Sale {
     id?: number;
     total_amount: number;
-    payment_method: 'cash' | 'card';
+    discount?: number;
+    payment_method: 'cash' | 'card' | 'credit';
     status?: 'completed' | 'pending_void' | 'voided';
     items: SaleItem[];
+    customer_id?: number;
+    customer_name?: string;
     created_at?: string;
 }
 
@@ -131,7 +136,7 @@ export const getCurrentShift = async (cashierId: number) => {
 
 // Analytics API
 export const getDailySales = async () => {
-    const response = await api.get<{ date: string; total: number }[]>('/sales/analytics/daily');
+    const response = await api.get<{ date: string; total: number; profit: number }[]>('/sales/analytics/daily');
     return response.data;
 };
 
@@ -164,5 +169,75 @@ export const getHeldSales = async () => {
 export const retrieveHeldSale = async (id: number) => {
     // Returns list of items with product details
     const response = await api.delete<{ message: string; items: any[] }>(`/sales/held/${id}`);
+    return response.data;
+};
+
+// Customers API
+export interface Customer {
+    id: number;
+    name: string;
+    phone?: string;
+    email?: string;
+    credit_balance: number;
+    created_at?: string;
+}
+
+export const getCustomers = async () => {
+    const response = await api.get<Customer[]>('/customers');
+    return response.data;
+};
+
+export const searchCustomers = async (query: string) => {
+    const response = await api.get<Customer[]>(`/customers/search?q=${query}`);
+    return response.data;
+};
+
+export const addCustomer = async (customer: { name: string; phone?: string; email?: string }) => {
+    const response = await api.post<Customer>('/customers', customer);
+    return response.data;
+};
+
+export const recordCreditPayment = async (customerId: number, data: { amount: number; payment_method: string; cashierId: number }) => {
+    const response = await api.post(`/customers/${customerId}/payments`, data);
+    return response.data;
+};
+
+export const getCustomerHistory = async (customerId: number) => {
+    const response = await api.get<any[]>(`/customers/${customerId}/history`);
+    return response.data;
+};
+
+// Settings (Backup & Restore)
+export const restoreDatabase = async (file: File) => {
+    const formData = new FormData();
+    formData.append('database', file);
+
+    // We will bypass json headers by not putting specific headers other than multipart/form-data
+    const response = await axios.post<{ message: string }>(`${API_URL}/settings/restore`, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
+// Stock Adjustments API
+export interface StockAdjustment {
+    id: number;
+    product_id: number;
+    user_id: number;
+    quantity_change: number;
+    reason: string;
+    notes?: string;
+    created_at?: string;
+}
+
+export const getStockAdjustments = async (productId: number) => {
+    const response = await api.get<StockAdjustment[]>(`/products/${productId}/adjustments`);
+    return response.data;
+};
+
+export const addStockAdjustment = async (productId: number, data: { user_id: number; quantity_change: number; reason: string; notes?: string }) => {
+    const response = await api.post(`/products/${productId}/adjustments`, data);
     return response.data;
 };

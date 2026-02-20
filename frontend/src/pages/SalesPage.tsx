@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { type Product, getProducts, processSale, holdSale, getHeldSales, retrieveHeldSale, type Sale } from '../services/api';
+import { type Product, getProducts, processSale, holdSale, getHeldSales, retrieveHeldSale, getCustomers, type Sale, type Customer } from '../services/api';
 import { Input } from '../components/ui/input';
-import { printReceipt } from '../utils/printer';
+import { useReactToPrint } from 'react-to-print';
+import Receipt from '../components/Receipt';
 import { Search, ShoppingCart, CreditCard, Banknote, Pause, Trash2, Plus, Minus, PackageOpen, MonitorPlay, Clock, Trash } from 'lucide-react';
 
 import {
@@ -25,7 +26,11 @@ const SalesPage: React.FC = () => {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'credit'>('cash');
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+    const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
+    const [discountValue, setDiscountValue] = useState<number>(0);
 
     // State for receipt dialog
     const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
@@ -41,7 +46,17 @@ const SalesPage: React.FC = () => {
     useEffect(() => {
         fetchProducts();
         fetchHeldSales();
+        fetchCustomers();
     }, []);
+
+    const fetchCustomers = async () => {
+        try {
+            const data = await getCustomers();
+            setCustomers(data);
+        } catch (error) {
+            console.error('Error fetching customers', error);
+        }
+    };
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -130,14 +145,18 @@ const SalesPage: React.FC = () => {
         }
     };
 
-    const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const subtotalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const totalDiscount = discountType === 'percent' ? (subtotalAmount * (discountValue / 100)) : discountValue;
+    const totalAmount = Math.max(0, subtotalAmount - totalDiscount);
 
     const handleCheckout = async () => {
         if (cart.length === 0) return;
 
         const saleData = {
             total_amount: totalAmount,
+            discount: totalDiscount,
             payment_method: paymentMethod,
+            customer_id: paymentMethod === 'credit' && selectedCustomerId ? selectedCustomerId : undefined,
             items: cart.map((item) => ({
                 product_id: item.product.id!,
                 quantity: item.quantity,
@@ -159,7 +178,10 @@ const SalesPage: React.FC = () => {
 
             setCart([]);
             setPaymentMethod('cash');
+            setSelectedCustomerId(null);
+            setDiscountValue(0);
             fetchProducts(); // refresh stock
+            if (paymentMethod === 'credit') fetchCustomers(); // refresh balances
         } catch (error) {
             alert('Failed to process sale');
             console.error(error);
@@ -171,6 +193,7 @@ const SalesPage: React.FC = () => {
 
         const saleData = {
             total_amount: totalAmount,
+            discount: totalDiscount,
             items: cart.map((item) => ({
                 product_id: item.product.id!,
                 quantity: item.quantity,
@@ -181,6 +204,7 @@ const SalesPage: React.FC = () => {
         try {
             await holdSale(saleData);
             setCart([]);
+            setDiscountValue(0);
             fetchProducts();
             fetchHeldSales();
         } catch (error) {
@@ -197,6 +221,7 @@ const SalesPage: React.FC = () => {
                     name: item.name,
                     barcode: item.barcode,
                     price: item.price,
+                    cost_price: item.cost_price,
                     stock_quantity: item.stock_quantity,
                     category_id: item.category_id
                 },
@@ -212,12 +237,12 @@ const SalesPage: React.FC = () => {
         }
     };
 
-    const handlePrintReceipt = () => {
-        if (lastSaleData) {
-            printReceipt(lastSaleData.sale, lastSaleData.items);
-            setIsReceiptDialogOpen(false);
-        }
-    };
+    const receiptRef = useRef<HTMLDivElement>(null);
+
+    const handlePrintReceipt = useReactToPrint({
+        contentRef: receiptRef,
+        onAfterPrint: () => setIsReceiptDialogOpen(false),
+    });
 
     const filteredProducts = products.filter((p) =>
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -404,7 +429,51 @@ const SalesPage: React.FC = () => {
 
                 {/* Checkout Footer */}
                 <div className="p-6 bg-white border-t border-slate-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] shrink-0">
-                    <div className="flex justify-between items-end mb-6">
+                    <div className="flex flex-col gap-2 mb-4">
+                        <div className="flex justify-between items-center text-slate-500 font-medium">
+                            <span>Subtotal</span>
+                            <span>LKR {subtotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <span className="text-slate-500 font-medium whitespace-nowrap">Discount</span>
+                            <div className="flex flex-1 max-w-[200px] ml-auto">
+                                <Button
+                                    variant={discountType === 'percent' ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={`rounded-r-none border-r-0 ${discountType === 'percent' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                    onClick={() => setDiscountType('percent')}
+                                >
+                                    %
+                                </Button>
+                                <Button
+                                    variant={discountType === 'fixed' ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={`rounded-l-none rounded-r-none ${discountType === 'fixed' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                    onClick={() => setDiscountType('fixed')}
+                                >
+                                    LKR
+                                </Button>
+                                <Input
+                                    type="number"
+                                    className="h-9 rounded-l-none border-l-0 text-right font-medium focus-visible:ring-0 focus-visible:ring-offset-0"
+                                    value={discountValue || ''}
+                                    onChange={(e) => setDiscountValue(Number(e.target.value))}
+                                    placeholder="0"
+                                    min="0"
+                                />
+                            </div>
+                        </div>
+
+                        {totalDiscount > 0 && (
+                            <div className="flex justify-between items-center text-emerald-600 font-semibold text-sm">
+                                <span>Discount Amount</span>
+                                <span>- LKR {totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between items-end mb-6 pt-3 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Total Amount</span>
                         <span className="text-4xl font-extrabold text-slate-800 tracking-tight">
                             LKR {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -433,7 +502,30 @@ const SalesPage: React.FC = () => {
                                 <CreditCard className="w-5 h-5 mr-2" />
                                 Card
                             </Button>
+                            <Button
+                                variant={paymentMethod === 'credit' ? 'default' : 'outline'}
+                                onClick={() => setPaymentMethod('credit')}
+                                className={`flex-1 h-12 rounded-xl text-md font-semibold transition-all ${paymentMethod === 'credit' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md' : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100'}`}
+                            >
+                                <Clock className="w-5 h-5 mr-2" />
+                                Credit
+                            </Button>
                         </div>
+                        {paymentMethod === 'credit' && (
+                            <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200 animate-in fade-in duration-300">
+                                <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Customer for Credit</label>
+                                <select
+                                    className="w-full h-10 rounded-lg border-slate-300 bg-white"
+                                    value={selectedCustomerId || ''}
+                                    onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
+                                >
+                                    <option value="" disabled>-- Select a customer --</option>
+                                    {customers.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name} (Balance: LKR {c.credit_balance.toLocaleString()})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-3">
@@ -477,6 +569,13 @@ const SalesPage: React.FC = () => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Hidden Receipt Component for Printing */}
+            <div className="hidden">
+                {lastSaleData && (
+                    <Receipt ref={receiptRef} sale={lastSaleData.sale} items={lastSaleData.items} />
+                )}
+            </div>
 
         </div>
     );

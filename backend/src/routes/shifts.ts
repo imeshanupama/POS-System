@@ -52,12 +52,19 @@ router.post('/end', (req, res) => {
         // Let's summing sales for this cashier since shift start.
 
         const salesResult = db.prepare(`
-            SELECT SUM(total_amount) as total 
+            SELECT 
+                SUM(CASE WHEN payment_method = 'cash' THEN total_amount ELSE 0 END) as cash_sales,
+                SUM(CASE WHEN payment_method = 'card' THEN total_amount ELSE 0 END) as card_sales,
+                SUM(CASE WHEN payment_method = 'credit' THEN total_amount ELSE 0 END) as credit_sales,
+                SUM(total_amount) as total_sales
             FROM sales 
             WHERE cashier_id = ? AND created_at >= ? AND status = 'completed'
-        `).get(shift.cashier_id, shift.start_time) as { total: number } | undefined;
+        `).get(shift.cashier_id, shift.start_time) as any;
 
-        const totalSales = salesResult?.total || 0;
+        const cashSales = salesResult?.cash_sales || 0;
+        const cardSales = salesResult?.card_sales || 0;
+        const creditSales = salesResult?.credit_sales || 0;
+        const totalSales = salesResult?.total_sales || 0;
 
         const update = db.prepare('UPDATE shifts SET end_time = CURRENT_TIMESTAMP, end_cash = ?, total_sales = ? WHERE id = ?');
         update.run(endCash, totalSales, shiftId);
@@ -67,8 +74,11 @@ router.post('/end', (req, res) => {
             summary: {
                 startCash: shift.start_cash,
                 endCash,
+                cashSales,
+                cardSales,
+                creditSales,
                 totalSales,
-                expectedCash: shift.start_cash + totalSales
+                expectedCash: shift.start_cash + cashSales
             }
         });
     } catch (error) {

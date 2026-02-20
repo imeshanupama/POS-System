@@ -5,6 +5,8 @@ import SalesHistoryPage from './pages/SalesHistoryPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import UsersPage from './pages/UsersPage';
+import CustomersPage from './pages/CustomersPage';
+import SettingsPage from './pages/SettingsPage';
 import { getCurrentUser, logoutUser } from './services/api';
 import './App.css';
 
@@ -46,7 +48,9 @@ function Layout({ children }: { children: React.ReactNode }) {
             <>
               <Link to="/" className="text-blue-600 hover:underline">Dashboard</Link>
               <Link to="/products" className="text-blue-600 hover:underline">Products</Link>
+              <Link to="/customers" className="text-blue-600 hover:underline">Customers</Link>
               <Link to="/users" className="text-blue-600 hover:underline">Users</Link>
+              <Link to="/settings" className="text-blue-600 hover:underline">Settings</Link>
             </>
           )}
           <Link to="/sales" className="text-blue-600 hover:underline">New Sale</Link>
@@ -87,6 +91,18 @@ function App() {
         <Route path="/users" element={
           <ProtectedRoute adminOnly>
             <Layout><UsersPage /></Layout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/customers" element={
+          <ProtectedRoute adminOnly>
+            <Layout><CustomersPage /></Layout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/settings" element={
+          <ProtectedRoute adminOnly>
+            <Layout><SettingsPage /></Layout>
           </ProtectedRoute>
         } />
 

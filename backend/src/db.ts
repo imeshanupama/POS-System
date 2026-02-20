@@ -17,6 +17,7 @@ export function initDatabase() {
       name TEXT NOT NULL,
       barcode TEXT UNIQUE,
       price REAL NOT NULL,
+      cost_price REAL DEFAULT 0,
       stock_quantity INTEGER DEFAULT 0,
       category_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -26,11 +27,14 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS sales (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       total_amount REAL NOT NULL,
-      payment_method TEXT NOT NULL, -- 'cash', 'card'
+      payment_method TEXT NOT NULL, -- 'cash', 'card', 'credit'
       status TEXT DEFAULT 'completed', -- 'completed', 'pending_void', 'voided'
       cashier_id INTEGER,
+      customer_id INTEGER,
+      discount REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (cashier_id) REFERENCES users(id)
+      FOREIGN KEY (cashier_id) REFERENCES users(id),
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
 
     CREATE TABLE IF NOT EXISTS sale_items (
@@ -39,6 +43,8 @@ export function initDatabase() {
       product_id INTEGER NOT NULL,
       quantity INTEGER NOT NULL,
       price_at_sale REAL NOT NULL,
+      cost_price_at_sale REAL DEFAULT 0,
+      discount REAL DEFAULT 0,
       FOREIGN KEY (sale_id) REFERENCES sales(id),
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
@@ -60,6 +66,38 @@ export function initDatabase() {
       end_cash REAL,
       total_sales REAL DEFAULT 0,
       FOREIGN KEY (cashier_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT UNIQUE,
+      email TEXT,
+      credit_balance REAL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS credit_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      cashier_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (cashier_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS stock_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      quantity_change INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `;
 

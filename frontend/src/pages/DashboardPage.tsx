@@ -10,7 +10,7 @@ const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
 
 const DashboardPage: React.FC = () => {
     const [sales, setSales] = useState<Sale[]>([]);
-    const [dailySales, setDailySales] = useState<{ date: string; total: number }[]>([]);
+    const [dailySales, setDailySales] = useState<{ date: string; total: number; profit: number }[]>([]);
     const [topProducts, setTopProducts] = useState<{ name: string; total_sold: number }[]>([]);
     const [lowStock, setLowStock] = useState<Product[]>([]);
     const [categorySales, setCategorySales] = useState<{ name: string; value: number }[]>([]);
@@ -55,6 +55,8 @@ const DashboardPage: React.FC = () => {
     const todaySalesData = dailySales.find(d => d.date === today)?.total || 0;
     const yesterdaySalesData = dailySales.find(d => d.date === yesterday)?.total || 0;
 
+    const todayProfitData = dailySales.find(d => d.date === today)?.profit || 0;
+
     const growth = yesterdaySalesData === 0
         ? (todaySalesData > 0 ? 100 : 0)
         : ((todaySalesData - yesterdaySalesData) / yesterdaySalesData) * 100;
@@ -95,7 +97,7 @@ const DashboardPage: React.FC = () => {
             </div>
 
             {/* Key Metrics Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
                 <Card className="border-none shadow-md bg-white">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-semibold text-slate-500">Today's Revenue</CardTitle>
@@ -116,6 +118,19 @@ const DashboardPage: React.FC = () => {
                             </p>
                             <p className="text-sm text-slate-400 ml-1">vs yesterday</p>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-md bg-white">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-semibold text-slate-500">Today's Profit</CardTitle>
+                        <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
+                            <TrendingUp className="w-4 h-4" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-slate-800">LKR {todayProfitData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                        <p className="text-sm text-slate-400 mt-1">Based on cost price</p>
                     </CardContent>
                 </Card>
 
@@ -177,6 +192,10 @@ const DashboardPage: React.FC = () => {
                                             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                                             <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                                         </linearGradient>
+                                        <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis
@@ -198,7 +217,7 @@ const DashboardPage: React.FC = () => {
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: 'none', fontStyle: 'normal', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                                         itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
-                                        formatter={(value: any) => [`LKR ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 'Revenue']}
+                                        formatter={(value: any, name: any) => [`LKR ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, name === 'total' ? 'Revenue' : 'Profit']}
                                         labelStyle={{ color: '#64748b', marginBottom: '4px' }}
                                     />
                                     <Area
@@ -209,6 +228,15 @@ const DashboardPage: React.FC = () => {
                                         fillOpacity={1}
                                         fill="url(#colorTotal)"
                                         activeDot={{ r: 6, fill: "#6366f1", stroke: "#ffffff", strokeWidth: 2 }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="profit"
+                                        stroke="#10b981"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorProfit)"
+                                        activeDot={{ r: 6, fill: "#10b981", stroke: "#ffffff", strokeWidth: 2 }}
                                     />
                                 </AreaChart>
                             </ResponsiveContainer>

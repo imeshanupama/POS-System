@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { type Product, getProducts, deleteProduct } from '../services/api';
-import { Search, Package, AlertCircle, Pencil, Trash2 } from 'lucide-react';
+import { Search, Package, AlertCircle, Pencil, Trash2, ClipboardList } from 'lucide-react';
 import { Button } from './ui/button';
+import { StockAdjustmentDialog } from './StockAdjustmentDialog';
 
 interface ProductListProps {
     onEdit?: (product: Product) => void;
@@ -15,6 +16,9 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
+
+    const [isAdjustOpen, setIsAdjustOpen] = useState(false);
+    const [productToAdjust, setProductToAdjust] = useState<Product | null>(null);
 
     useEffect(() => {
         fetchProducts();
@@ -57,6 +61,11 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
                 alert('Failed to delete product. It might be used in existing sales.');
             }
         }
+    };
+
+    const handleOpenAdjust = (product: Product) => {
+        setProductToAdjust(product);
+        setIsAdjustOpen(true);
     };
 
     const getStockBadge = (quantity: number) => {
@@ -119,8 +128,9 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
                                 <TableRow className="hover:bg-transparent">
                                     <TableHead className="w-[300px] font-semibold text-slate-600">Product Name</TableHead>
                                     <TableHead className="font-semibold text-slate-600">Barcode</TableHead>
-                                    <TableHead className="font-semibold text-slate-600 text-right">Price</TableHead>
-                                    <TableHead className="font-semibold text-slate-600">Stock Status</TableHead>
+                                    <TableHead className="font-semibold text-slate-600 text-right">Selling Price</TableHead>
+                                    <TableHead className="font-semibold text-slate-600 text-right">Cost Price</TableHead>
+                                    <TableHead className="font-semibold text-slate-600 text-center">Stock Status</TableHead>
                                     <TableHead className="font-semibold text-slate-600 text-center w-[120px]">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -130,7 +140,8 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
                                         <TableCell className="font-medium text-slate-800">{product.name}</TableCell>
                                         <TableCell className="text-slate-500 font-mono text-sm">{product.barcode || <span className="text-slate-300 italic">No barcode</span>}</TableCell>
                                         <TableCell className="text-right font-bold text-slate-700">LKR {product.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                                        <TableCell>{getStockBadge(product.stock_quantity)}</TableCell>
+                                        <TableCell className="text-right font-medium text-slate-500">LKR {(product.cost_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                                        <TableCell className="text-center">{getStockBadge(product.stock_quantity)}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center justify-center gap-2">
                                                 <Button
@@ -140,6 +151,15 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
                                                     onClick={() => onEdit && onEdit(product)}
                                                 >
                                                     <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                    onClick={() => handleOpenAdjust(product)}
+                                                    title="Adjust Stock"
+                                                >
+                                                    <ClipboardList className="h-4 w-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
@@ -158,6 +178,13 @@ const ProductList: React.FC<ProductListProps> = ({ onEdit }) => {
                     </div>
                 )}
             </CardContent>
+
+            <StockAdjustmentDialog
+                open={isAdjustOpen}
+                onOpenChange={setIsAdjustOpen}
+                product={productToAdjust}
+                onAdjusted={fetchProducts}
+            />
         </Card>
     );
 };
