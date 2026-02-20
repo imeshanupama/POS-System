@@ -35,6 +35,11 @@ export const updateProduct = async (id: number, product: Partial<Product>) => {
     return response.data;
 };
 
+export const deleteProduct = async (id: number) => {
+    const response = await api.delete<{ message: string }>(`/products/${id}`);
+    return response.data;
+};
+
 export interface SaleItem {
     product_id: number;
     quantity: number;
@@ -97,5 +102,67 @@ export const approveVoid = async (saleId: number) => {
 
 export const registerUser = async (user: { username: string; password: string; role: 'admin' | 'cashier' }) => {
     const response = await api.post<User>('/auth/register', user);
+    return response.data;
+};
+export interface Shift {
+    id: number;
+    cashier_id: number;
+    start_time: string;
+    end_time?: string;
+    start_cash: number;
+    end_cash?: number;
+    total_sales?: number;
+}
+
+export const startShift = async (cashierId: number, startCash: number) => {
+    const response = await api.post<{ id: number; message: string }>('/shifts/start', { cashierId, startCash });
+    return response.data;
+};
+
+export const endShift = async (shiftId: number, endCash: number) => {
+    const response = await api.post<{ message: string; summary: any }>('/shifts/end', { shiftId, endCash });
+    return response.data;
+};
+
+export const getCurrentShift = async (cashierId: number) => {
+    const response = await api.get<Shift | null>(`/shifts/current/${cashierId}`);
+    return response.data;
+};
+
+// Analytics API
+export const getDailySales = async () => {
+    const response = await api.get<{ date: string; total: number }[]>('/sales/analytics/daily');
+    return response.data;
+};
+
+export const getTopProducts = async () => {
+    const response = await api.get<{ name: string; total_sold: number }[]>('/sales/analytics/top-products');
+    return response.data;
+};
+
+export const getLowStockItems = async () => {
+    const response = await api.get<Product[]>('/sales/analytics/low-stock');
+    return response.data;
+};
+
+export const getCategorySales = async () => {
+    const response = await api.get<{ name: string; value: number }[]>('/sales/analytics/category-sales');
+    return response.data;
+};
+
+// Hold & Retrieve API
+export const holdSale = async (sale: Partial<Sale>) => {
+    const response = await api.post<{ id: number; message: string }>('/sales/hold', sale);
+    return response.data;
+};
+
+export const getHeldSales = async () => {
+    const response = await api.get<Sale[]>('/sales/held');
+    return response.data;
+};
+
+export const retrieveHeldSale = async (id: number) => {
+    // Returns list of items with product details
+    const response = await api.delete<{ message: string; items: any[] }>(`/sales/held/${id}`);
     return response.data;
 };

@@ -66,6 +66,78 @@ router.get('/', (req, res) => {
     }
 });
 
+// Analytics: Daily Sales (Last 7 Days)
+router.get('/analytics/daily', (req, res) => {
+    try {
+        const data = db.prepare(`
+            SELECT strftime('%Y-%m-%d', created_at) as date, SUM(total_amount) as total
+            FROM sales
+            WHERE status = 'completed' AND created_at >= date('now', '-7 days')
+            GROUP BY date
+            ORDER BY date
+        `).all();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch daily sales' });
+    }
+});
+
+// Analytics: Top Selling Products
+router.get('/analytics/top-products', (req, res) => {
+    try {
+        const data = db.prepare(`
+            SELECT p.name, SUM(si.quantity) as total_sold
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            JOIN products p ON si.product_id = p.id
+            WHERE s.status = 'completed'
+            GROUP BY p.id
+            ORDER BY total_sold DESC
+            LIMIT 5
+        `).all();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch top products' });
+    }
+});
+
+// Analytics: Low Stock Alerts
+router.get('/analytics/low-stock', (req, res) => {
+    try {
+        const data = db.prepare(`
+            SELECT * FROM products WHERE stock_quantity < 10
+        `).all();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch low stock items' });
+    }
+});
+
+// Analytics: Sales by Category
+router.get('/analytics/category-sales', (req, res) => {
+    try {
+        const data = db.prepare(`
+            SELECT c.name, SUM(si.quantity * si.price_at_sale) as value
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            JOIN products p ON si.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE s.status = 'completed'
+            GROUP BY p.category_id
+            ORDER BY value DESC
+        `).all();
+
+        const formattedData = data.map((item: any) => ({
+            name: item.name || 'Uncategorized',
+            value: item.value || 0
+        }));
+
+        res.json(formattedData);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch category sales' });
+    }
+});
+
 // Request void (Cashier)
 router.post('/:id/void', (req, res) => {
     const { id } = req.params;
@@ -79,6 +151,107 @@ router.post('/:id/void', (req, res) => {
         res.json({ message: 'Void request submitted' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to request void' });
+    }
+});
+
+// Hold Sale (Park)
+router.post('/hold', (req, res) => {
+    const { total_amount, items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items cannot be empty' });
+    }
+
+    try {
+        const insertSale = db.prepare('INSERT INTO sales (total_amount, payment_method, status) VALUES (?, ?, ?)');
+        const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)');
+        const updateStock = db.prepare('UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?');
+
+        const createTransaction = db.transaction(() => {
+            const info = insertSale.run(total_amount, 'hold', 'held');
+            const saleId = info.lastInsertRowid;
+
+            for (const item of items) {
+                insertItem.run(saleId, item.product_id, item.quantity, item.price_at_sale);
+                updateStock.run(item.quantity, item.product_id);
+            }
+            return saleId;
+        });
+
+        const saleId = createTransaction();
+        res.status(201).json({ id: saleId, message: 'Sale held successfully' });
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
+
+// Get Held Sales
+router.get('/held', (req, res) => {
+    try {
+        const sales = db.prepare(`
+            SELECT s.*, 
+            (SELECT json_group_array(json_object(
+                'product_id', si.product_id, 
+                'quantity', si.quantity, 
+                'price_at_sale', si.price_at_sale,
+                'name', p.name,
+                'price', p.price
+            ))
+            FROM sale_items si
+            JOIN products p ON si.product_id = p.id
+            WHERE si.sale_id = s.id) as items
+            FROM sales s 
+            WHERE status = 'held'
+            ORDER BY created_at DESC
+        `).all();
+
+        const formattedSales = sales.map((sale: any) => ({
+            ...sale,
+            items: JSON.parse(sale.items)
+        }));
+
+        res.json(formattedSales);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch held sales' });
+    }
+});
+
+// Retrieve (Delete) Held Sale
+router.delete('/held/:id', (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Get items with product details to restore to cart
+        const getItems = db.prepare(`
+            SELECT si.*, p.name, p.barcode, p.price, p.stock_quantity, p.category_id
+            FROM sale_items si
+            JOIN products p ON si.product_id = p.id
+            WHERE si.sale_id = ?
+        `);
+        const updateStock = db.prepare('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?');
+        const deleteItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?');
+        const deleteSale = db.prepare('DELETE FROM sales WHERE id = ?');
+
+        const retrieveTransaction = db.transaction(() => {
+            const items = getItems.all(id) as any[];
+            if (items.length === 0) throw new Error('Sale not found or empty');
+
+            // Restore Stock
+            for (const item of items) {
+                updateStock.run(item.quantity, item.product_id);
+            }
+
+            // Clean up DB
+            deleteItems.run(id);
+            deleteSale.run(id);
+
+            return items;
+        });
+
+        const items = retrieveTransaction();
+        res.json({ message: 'Sale retrieved', items });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve sale' });
     }
 });
 

@@ -50,6 +50,17 @@ export function initDatabase() {
       role TEXT NOT NULL DEFAULT 'cashier', -- 'admin', 'cashier'
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cashier_id INTEGER NOT NULL,
+      start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      end_time DATETIME,
+      start_cash REAL DEFAULT 0,
+      end_cash REAL,
+      total_sales REAL DEFAULT 0,
+      FOREIGN KEY (cashier_id) REFERENCES users(id)
+    );
   `;
 
   db.exec(schema);

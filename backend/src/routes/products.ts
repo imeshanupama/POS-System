@@ -73,4 +73,22 @@ router.put('/:id', (req, res) => {
     }
 });
 
+// Delete product
+router.delete('/:id', (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const stmt = db.prepare('DELETE FROM products WHERE id = ?');
+        const info = stmt.run(id);
+
+        if (info.changes === 0) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        res.json({ message: 'Product deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
+
 export default router;

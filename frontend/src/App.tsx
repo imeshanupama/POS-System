@@ -23,6 +23,10 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
   return children;
 }
 
+import { ShiftManager } from './components/ShiftManager';
+
+// ... existing imports ...
+
 function Layout({ children }: { children: React.ReactNode }) {
   const user = getCurrentUser();
 
@@ -49,6 +53,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <Link to="/history" className="text-blue-600 hover:underline">History</Link>
         </div>
         <div className="flex items-center gap-4">
+          {user.role === 'cashier' && <ShiftManager />}
           <span className="text-sm text-gray-600">User: {user.username} ({user.role})</span>
           <button onClick={onLogout} className="text-red-600 hover:underline">Logout</button>
         </div>
