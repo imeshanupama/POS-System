@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { type Sale, getSales, getDailySales, getTopProducts, getLowStockItems, getCategorySales, type Product } from '../services/api';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Package, DollarSign, Activity, AlertCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, TrendingUp, Package, DollarSign, Activity, AlertCircle, Download } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'];
 
@@ -16,19 +17,24 @@ const DashboardPage: React.FC = () => {
     const [categorySales, setCategorySales] = useState<{ name: string; value: number }[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Date Filters
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [startDate, endDate]);
 
     const fetchData = async () => {
         try {
             setLoading(true);
+            const dateParams = (startDate && endDate) ? { start: startDate, end: endDate } : undefined;
             const [salesData, dailyData, topData, stockData, catData] = await Promise.all([
                 getSales(),
-                getDailySales(),
-                getTopProducts(),
+                getDailySales(dateParams),
+                getTopProducts(dateParams),
                 getLowStockItems(),
-                getCategorySales()
+                getCategorySales(dateParams)
             ]);
 
             setSales(salesData);
@@ -45,6 +51,19 @@ const DashboardPage: React.FC = () => {
 
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
     const totalTransactions = sales.length;
+
+    const handleExportCSV = () => {
+        const header = "Date,Revenue,Profit\n";
+        const rows = dailySales.map(d => `${d.date},${d.total},${d.profit}`).join("\n");
+        const csv = header + rows;
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sales_report_${startDate || 'all'}_to_${endDate || 'all'}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
 
     // Calculate growth
     const today = new Date().toISOString().split('T')[0];
@@ -86,13 +105,24 @@ const DashboardPage: React.FC = () => {
                     <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Dashboard Overview</h1>
                     <p className="text-slate-500 mt-1">Monitor your store's performance and inventory</p>
                 </div>
-                <div className="flex space-x-3">
-                    <Link to="/products">
-                        <Button variant="outline" className="h-10 border-slate-200 text-slate-600">Manage Products</Button>
-                    </Link>
-                    <Link to="/sales">
-                        <Button className="h-10 bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all">Start New Sale</Button>
-                    </Link>
+
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 items-end md:items-center">
+                    <div className="flex items-center space-x-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                        <Input type="date" className="h-9 border-none text-sm bg-transparent focus-visible:ring-0" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        <span className="text-slate-400 text-sm font-medium">to</span>
+                        <Input type="date" className="h-9 border-none text-sm bg-transparent focus-visible:ring-0" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        {(startDate || endDate) && <Button variant="ghost" size="sm" onClick={() => { setStartDate(''); setEndDate(''); }} className="h-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg">Clear</Button>}
+                    </div>
+
+                    <div className="flex space-x-3">
+                        <Button variant="outline" className="h-11 border-slate-200 text-slate-600 bg-white hover:bg-slate-50 shadow-sm" onClick={handleExportCSV}>
+                            <Download className="w-4 h-4 mr-2 text-slate-500" />
+                            Export CSV
+                        </Button>
+                        <Link to="/sales">
+                            <Button className="h-11 bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all">Start New Sale</Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 

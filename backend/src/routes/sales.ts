@@ -81,15 +81,25 @@ router.get('/', (req, res) => {
 // Analytics: Daily Sales (Last 7 Days)
 router.get('/analytics/daily', (req, res) => {
     try {
+        const { start, end } = req.query;
+        let whereClause = "status = 'completed'";
+        const params: any[] = [];
+        if (start && end) {
+            whereClause += " AND date(created_at) >= ? AND date(created_at) <= ?";
+            params.push(start as string, end as string);
+        } else {
+            whereClause += " AND created_at >= date('now', '-30 days')";
+        }
+
         const data = db.prepare(`
             SELECT strftime('%Y-%m-%d', created_at) as date, 
                    SUM(total_amount) as total,
-                   SUM((SELECT SUM((price_at_sale - cost_price_at_sale) * quantity) FROM sale_items WHERE sale_id = sales.id)) as profit
+                   SUM((SELECT SUM((price_at_sale - cost_price_at_sale) * quantity) FROM sale_items WHERE sale_id = sales.id) - COALESCE(discount, 0)) as profit
             FROM sales
-            WHERE status = 'completed' AND created_at >= date('now', '-7 days')
+            WHERE ${whereClause}
             GROUP BY date
             ORDER BY date
-        `).all();
+        `).all(...params);
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch daily sales' });
@@ -99,16 +109,24 @@ router.get('/analytics/daily', (req, res) => {
 // Analytics: Top Selling Products
 router.get('/analytics/top-products', (req, res) => {
     try {
+        const { start, end } = req.query;
+        let whereClause = "s.status = 'completed'";
+        const params: any[] = [];
+        if (start && end) {
+            whereClause += " AND date(s.created_at) >= ? AND date(s.created_at) <= ?";
+            params.push(start as string, end as string);
+        }
+
         const data = db.prepare(`
             SELECT p.name, SUM(si.quantity) as total_sold
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             JOIN products p ON si.product_id = p.id
-            WHERE s.status = 'completed'
+            WHERE ${whereClause}
             GROUP BY p.id
             ORDER BY total_sold DESC
             LIMIT 5
-        `).all();
+        `).all(...params);
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch top products' });
@@ -130,16 +148,24 @@ router.get('/analytics/low-stock', (req, res) => {
 // Analytics: Sales by Category
 router.get('/analytics/category-sales', (req, res) => {
     try {
+        const { start, end } = req.query;
+        let whereClause = "s.status = 'completed'";
+        const params: any[] = [];
+        if (start && end) {
+            whereClause += " AND date(s.created_at) >= ? AND date(s.created_at) <= ?";
+            params.push(start as string, end as string);
+        }
+
         const data = db.prepare(`
             SELECT c.name, SUM(si.quantity * si.price_at_sale) as value
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             JOIN products p ON si.product_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id
-            WHERE s.status = 'completed'
+            WHERE ${whereClause}
             GROUP BY p.category_id
             ORDER BY value DESC
-        `).all();
+        `).all(...params);
 
         const formattedData = data.map((item: any) => ({
             name: item.name || 'Uncategorized',

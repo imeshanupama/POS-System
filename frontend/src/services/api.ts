@@ -135,13 +135,18 @@ export const getCurrentShift = async (cashierId: number) => {
 };
 
 // Analytics API
-export const getDailySales = async () => {
-    const response = await api.get<{ date: string; total: number; profit: number }[]>('/sales/analytics/daily');
+export interface DateRange {
+    start?: string;
+    end?: string;
+}
+
+export const getDailySales = async (params?: DateRange) => {
+    const response = await api.get<{ date: string; total: number; profit: number }[]>('/sales/analytics/daily', { params });
     return response.data;
 };
 
-export const getTopProducts = async () => {
-    const response = await api.get<{ name: string; total_sold: number }[]>('/sales/analytics/top-products');
+export const getTopProducts = async (params?: DateRange) => {
+    const response = await api.get<{ name: string; total_sold: number }[]>('/sales/analytics/top-products', { params });
     return response.data;
 };
 
@@ -150,8 +155,8 @@ export const getLowStockItems = async () => {
     return response.data;
 };
 
-export const getCategorySales = async () => {
-    const response = await api.get<{ name: string; value: number }[]>('/sales/analytics/category-sales');
+export const getCategorySales = async (params?: DateRange) => {
+    const response = await api.get<{ name: string; value: number }[]>('/sales/analytics/category-sales', { params });
     return response.data;
 };
 
